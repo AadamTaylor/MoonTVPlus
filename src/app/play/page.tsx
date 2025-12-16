@@ -3576,6 +3576,49 @@ function PlayPageClient() {
         setPlayerReady(true);
         console.log('[PlayPage] Player ready, triggering sync setup');
 
+        // iOS 设备：动态调整弹幕设置面板位置，避免被遮挡
+        if (isIOS && artPlayerRef.current) {
+          // 使用 MutationObserver 监听弹幕设置面板的显示
+          let isAdjusting = false; // 防止重复调整的标记
+          const observer = new MutationObserver(() => {
+            if (isAdjusting) return; // 如果正在调整，跳过
+
+            const panel = document.querySelector('.apd-config-panel') as HTMLElement;
+            if (panel && panel.style.display !== 'none') {
+              // 获取当前的 left 值
+              const currentLeft = parseInt(panel.style.left || '0', 10);
+
+              // 如果 left 值异常小（iOS 上只有 -5px），调整为正常值（-246px，比标准位置再往左 100px）
+              if (currentLeft > -50) {
+                isAdjusting = true; // 设置标记，防止重复触发
+                const adjustedLeft = -246;
+                panel.style.left = `${adjustedLeft}px`;
+                console.log('[iOS] 已调整弹幕设置面板位置: 从', currentLeft, '调整为', adjustedLeft);
+
+                // 延迟重置标记
+                setTimeout(() => {
+                  isAdjusting = false;
+                }, 100);
+              }
+            }
+          });
+
+          // 监听整个播放器容器的 DOM 变化
+          if (artRef.current) {
+            observer.observe(artRef.current, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['style', 'class']
+            });
+          }
+
+          // 清理函数
+          artPlayerRef.current.on('destroy', () => {
+            observer.disconnect();
+          });
+        }
+
         // iOS 设备：监听屏幕方向变化，自动调整全屏状态
         if (isIOS && artPlayerRef.current) {
           const handleOrientationChange = () => {
