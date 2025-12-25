@@ -904,6 +904,10 @@ function PlayPageClient() {
       !detailData.episodes ||
       episodeIndex >= detailData.episodes.length
     ) {
+      // openlist 源的剧集是懒加载的，如果 episodes 为空则跳过
+      if (detailData?.source === 'openlist' && (!detailData.episodes || detailData.episodes.length === 0)) {
+        return;
+      }
       setVideoUrl('');
       return;
     }
@@ -2073,12 +2077,29 @@ function PlayPageClient() {
         }
       }
 
-      const newDetail = availableSources.find(
+      let newDetail = availableSources.find(
         (source) => source.source === newSource && source.id === newId
       );
       if (!newDetail) {
         setError('未找到匹配结果');
         return;
+      }
+
+      // 如果是 openlist 源且 episodes 为空，需要调用 detail 接口获取完整信息
+      if (newDetail.source === 'openlist' && (!newDetail.episodes || newDetail.episodes.length === 0)) {
+        try {
+          const detailResponse = await fetch(`/api/detail?source=${newSource}&id=${newId}`);
+          if (detailResponse.ok) {
+            newDetail = await detailResponse.json();
+          } else {
+            throw new Error('获取 openlist 详情失败');
+          }
+        } catch (err) {
+          console.error('获取 openlist 详情失败:', err);
+          setIsVideoLoading(false);
+          setError('获取视频详情失败，请重试');
+          return;
+        }
       }
 
       // 尝试跳转到当前正在播放的集数
@@ -2919,6 +2940,11 @@ function PlayPageClient() {
       currentEpisodeIndex === null ||
       !artRef.current
     ) {
+      return;
+    }
+
+    // openlist 源的剧集是懒加载的，如果 episodes 为空则跳过检查
+    if ((currentSource === 'openlist' || detail?.source === 'openlist') && (!detail || !detail.episodes || detail.episodes.length === 0)) {
       return;
     }
 
